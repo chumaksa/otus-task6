@@ -451,4 +451,95 @@ Complete!
 
 ### Решение
 
+Теперь приступим к создания созданию своего репозитория. Для этого будем использовать наш уже установленный Nginx. \
+По умолчанию для статики nginx использует каталог /usr/share/nginx/html/. \
+Добавим туда каталог repo. Это будет наш каталог репозитория. Затем скопируем туда наш rpm пакет.
+```
+
+[vagrant@otusrpm ~]$ sudo mkdir -p /usr/share/nginx/html/repo
+[vagrant@otusrpm ~]$ sudo cp rpmbuild/RPMS/x86_64/nginx-1.24.0-1.el9.ngx.x86_64.rpm /usr/share/nginx/html/repo/
+```
+
+Теперь, с помощью команды createrepo выполним инициалюзацию нашего репозитория.
+```
+
+[vagrant@otusrpm ~]$ sudo createrepo /usr/share/nginx/html/repo/
+Directory walk started
+Directory walk done - 1 packages
+Temporary output repo path: /usr/share/nginx/html/repo/.repodata/
+Preparing sqlite DBs
+Pool started (with 5 workers)
+Pool finished
+```
+
+Далее, чтобы обращаться к нашим пакетам через http, настроим в nginx доступ к листингу каталога. \
+Для этого отредактируем файл /etc/nginx/conf.d/default.conf. В раздел location / добавим диррективу autoindex on. \
+Изменим root каталог на root   /usr/share/nginx/html/repo/;
+После внесения изменений проверим и убедимся, что нет ошибок в конфигурационном файле.
+```
+
+[vagrant@otusrpm ~]$ sudo nginx -t
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+```
+
+Для применения изменений перезапускаем nginx.
+```
+
+[vagrant@otusrpm conf.d]$ sudo systemctl restart nginx
+[vagrant@otusrpm ~]$ systemctl status nginx
+● nginx.service - nginx - high performance web server
+     Loaded: loaded (/usr/lib/systemd/system/nginx.service; disabled; preset: disabled)
+     Active: active (running) since Fri 2024-01-05 13:53:00 UTC; 42min ago
+       Docs: http://nginx.org/en/docs/
+    Process: 32563 ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx.conf (code=exited, status=0/SUCCESS)
+   Main PID: 32564 (nginx)
+      Tasks: 2 (limit: 11928)
+     Memory: 2.1M
+        CPU: 12ms
+     CGroup: /system.slice/nginx.service
+             ├─32564 "nginx: master process /usr/sbin/nginx -c /etc/nginx/nginx.conf"
+             └─32651 "nginx: worker process"
+```
+
+Далее проверим доступность нашего репозитория по http.
+```
+
+[vagrant@otusrpm conf.d]$ curl http://localhost/
+<html>
+<head><title>Index of /</title></head>
+<body>
+<h1>Index of /</h1><hr><pre><a href="../">../</a>
+<a href="repodata/">repodata/</a>                                          05-Jan-2024 14:25                   -
+<a href="nginx-1.24.0-1.el9.ngx.x86_64.rpm">nginx-1.24.0-1.el9.ngx.x86_64.rpm</a>                  05-Jan-2024 14:22             2910812
+</pre><hr></body>
+</html>
+```
+Видим, что наш пакет доступен для загрузки. \
+
+Далее добавим наш репозиторий в /etc/yum.repos.d.
+```
+
+[root@otusrpm ~]# cat >> /etc/yum.repos.d/otus.repo << EOF
+[otus]
+name=otus-linux
+baseurl=http://localhost/
+gpgcheck=0
+enabled=1
+EOF
+```
+
+Убедимся что репозиторий подключился:
+```
+
+[root@otusrpm ~]# yum repolist enabled
+repo id                                                                                            repo name
+appstream                                                                                          AlmaLinux 9 - AppStream
+baseos                                                                                             AlmaLinux 9 - BaseOS
+extras                                                                                             AlmaLinux 9 - Extras
+otus                                                                                               otus-linux
+```
+
+
+
 
